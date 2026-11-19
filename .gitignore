@@ -1,0 +1,35 @@
+# Data (never commit – download via scripts/download_data.py)
+data/*
+!data/README.md
+*.sql.gz
+*.xml.bz2
+*.parquet
+*.pkl
+*.npz
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Results / logs
+results/
+*.log
+
+# Secrets & local config
+.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
