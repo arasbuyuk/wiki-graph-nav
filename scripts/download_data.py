@@ -22,6 +22,7 @@ from tqdm import tqdm
 BASE_URL = "https://dumps.wikimedia.org/{wiki}/{date}/{wiki}-{date}-{table}.sql.gz"
 TABLES = ["page", "pagelinks", "linktarget", "redirect"]
 RAW_DIR = Path(__file__).resolve().parents[1] / "data" / "raw"
+USER_AGENT = "wiki-graph-nav/0.1 (TUM Data Engineering course project; aras.bueyuek@tum.de)"
 
 
 def download(url: str, dest: Path) -> None:
@@ -29,7 +30,8 @@ def download(url: str, dest: Path) -> None:
         print(f"skip (exists): {dest.name}")
         return
     tmp = dest.with_suffix(dest.suffix + ".part")
-    with urllib.request.urlopen(url) as resp:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req) as resp:
         total = int(resp.headers.get("Content-Length", 0))
         with (
             open(tmp, "wb") as f,
