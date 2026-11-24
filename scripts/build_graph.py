@@ -3,7 +3,14 @@
 from collections import Counter
 from pathlib import Path
 
-from wikigraph.ingest.build import load_page_index, load_redirects, resolve_linktargets, write_pages
+from wikigraph.ingest.build import (
+    build_edges,
+    load_page_index,
+    load_redirects,
+    resolve_linktargets,
+    write_edges,
+    write_pages,
+)
 
 RAW = Path("data/raw/simplewiki/latest")
 OUT = Path("data/processed/simplewiki")
@@ -30,6 +37,15 @@ def main() -> None:
         RAW / "linktarget.sql.gz", title_to_id, redirect_ids, redirect_to_article
     )
     print_stats("linktarget", lt_stats)
+
+    article_ids = {page_id for page_id in title_to_id.values() if page_id not in redirect_ids}
+
+    edges, edge_stats = build_edges(
+        RAW / "pagelinks.sql.gz", article_ids, redirect_ids, lt_to_article
+    )
+    print_stats("pagelinks", edge_stats)
+    n_edges = write_edges(edges, OUT / "edges.parquet")
+    print(f"  -> wrote {n_edges:,} edges to {OUT / 'edges.parquet'}")
 
 
 if __name__ == "__main__":

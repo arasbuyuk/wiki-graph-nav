@@ -1,12 +1,13 @@
 """Turn the parsed dump tables into the graph files pages.parquet and edges.parquet"""
 
+from array import array
 from collections import Counter
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from wikigraph.ingest.sql_dump import iter_linktargets, iter_pages, iter_redirects
+from wikigraph.ingest.sql_dump import iter_linktargets, iter_pagelinks, iter_pages, iter_redirects
 
 
 def load_page_index(page_path: str | Path) -> tuple[dict[str, int], set[int], Counter]:
@@ -118,3 +119,55 @@ def resolve_linktargets(
             stats["direct"] += 1
         lt_to_article[lt_id] = page_id
     return lt_to_article, stats
+
+
+def build_edges(
+    pagelinks_path: str | Path,
+    article_ids: set[int],
+    redirect_ids: set[int],
+    lt_to_article: dict[int, int],
+) -> tuple[pa.Table, Counter]:
+    """Turn pagelinks rows into unique (source, target) edges between articles."""
+    sources = array("q")
+    targets = array("q")
+    stats: Counter = Counter()
+
+    for source, from_ns, lt_id in iter_pagelinks(pagelinks_path):
+        stats["rows"] += 1
+        if from_ns != 0:
+            stats["source not namespace 0"] += 1
+            continue
+        if source in redirect_ids:
+            stats["source is a redirect"] += 1
+            continue
+        if source not in article_ids:
+            stats["source page unknown"] += 1
+            continue
+        target = lt_to_article.get(lt_id)
+        if target is None:
+            stats["target not an article"] += 1
+            continue
+        if target == source:
+            stats["self loop"] += 1
+            continue
+        sources.append(source)
+        targets.append(target)
+        stats["edge rows"] += 1
+
+    table = pa.table(
+        {"source": pa.array(sources, type=pa.int64()), "target": pa.array(targets, type=pa.int64())}
+    )
+    edges = table.group_by(["source", "target"]).aggregate([]).select(["source", "target"])
+    edges = edges.sort_by([("source", "ascending"), ("target", "ascending")])
+
+    stats["duplicates removed"] = table.num_rows - edges.num_rows
+    stats["edges"] = edges.num_rows
+    return edges, stats
+
+
+def write_edges(edges: pa.Table, out_path: str | Path) -> int:
+    """Write the edge table to a parquet file. Returns the number of rows written."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(edges, out_path)
+    return edges.num_rows
