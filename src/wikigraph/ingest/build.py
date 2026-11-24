@@ -78,7 +78,7 @@ def load_redirects(
         if ns != 0:
             stats["target not in namespace 0"] += 1
             continue
-        target = title_to_id[title]
+        target = title_to_id.get(title)
         if target is None:
             stats["target page missing"] += 1
             continue
